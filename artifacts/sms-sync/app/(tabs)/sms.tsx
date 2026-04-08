@@ -1,4 +1,4 @@
-import { useUploadSms, useListTransactions, getListTransactionsQueryKey } from "@workspace/api-client-react";
+import { useUploadSms, getListTransactionsQueryKey } from "@workspace/api-client-react";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import {
@@ -9,19 +9,31 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Alert,
   Platform,
   KeyboardAvoidingView,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import * as Haptics from "expo-haptics";
 
 const EXAMPLE_SMS = [
-  "Покупка 3200₸ KFC Almaty 04.04.2026 12:35. Карта *4521. Остаток 45800₸",
-  "Зачисление 50000₸ на счёт Kaspi Gold. Отправитель: Работодатель. 04.04.2026",
-  "Покупка 8900₸ Magnum Cash&Carry Almaty. Карта Kaspi Gold *4521. Остаток 36900₸",
+  {
+    text: "Покупка 3200₸ KFC Almaty 04.04.2026 12:35. Карта *4521. Остаток 45800₸",
+    bank: "Kaspi",
+    type: "expense",
+  },
+  {
+    text: "Зачисление 50000₸ на счёт Kaspi Gold. Отправитель: Работодатель. 04.04.2026",
+    bank: "Kaspi",
+    type: "income",
+  },
+  {
+    text: "Покупка 8900₸ Magnum Cash&Carry Almaty. Карта Kaspi Gold *4521. Остаток 36900₸",
+    bank: "BCC",
+    type: "expense",
+  },
 ];
 
 export default function SmsScreen() {
@@ -43,7 +55,7 @@ export default function SmsScreen() {
         if (data.parsed) {
           const amount = data.parsed.amount;
           const type = data.parsed.type === "income" ? "Доход" : "Расход";
-          setLastResult(`${type}: ${amount.toLocaleString("ru-RU")} ₸ — добавлено`);
+          setLastResult(`${type}: ${amount.toLocaleString("ru-RU")} ₸ — добавлено!`);
           setLastStatus("success");
           setSmsText("");
           queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
@@ -72,10 +84,12 @@ export default function SmsScreen() {
     setSmsText(example);
     setLastResult(null);
     setLastStatus(null);
+    Haptics.selectionAsync();
   };
 
   const topInset = Platform.OS === "web" ? 67 : 0;
   const bottomInset = Platform.OS === "web" ? 34 : 0;
+  const canSend = smsText.trim().length > 0 && !uploadSmsMutation.isPending;
 
   return (
     <KeyboardAvoidingView
@@ -84,33 +98,39 @@ export default function SmsScreen() {
     >
       <ScrollView
         contentContainerStyle={{
-          paddingBottom: insets.bottom + 20 + bottomInset,
+          paddingBottom: insets.bottom + 32 + bottomInset,
           paddingTop: topInset,
         }}
+        showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top > 0 ? insets.top + 8 : 20 }]}>
           <Text style={[styles.title, { color: colors.foreground }]}>Добавить SMS</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-            Скопируй SMS от банка и вставь сюда
+            Скопируй банковское SMS и вставь ниже
           </Text>
         </View>
 
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.cardLabel, { color: colors.mutedForeground }]}>Текст SMS</Text>
+        <View style={[styles.inputCard, { backgroundColor: colors.card }]}>
+          <View style={styles.inputHeader}>
+            <View style={[styles.inputIconWrap, { backgroundColor: colors.primary + "15" }]}>
+              <Feather name="message-square" size={20} color={colors.primary} />
+            </View>
+            <Text style={[styles.inputLabel, { color: colors.foreground }]}>Текст SMS</Text>
+          </View>
           <TextInput
             style={[
               styles.input,
               {
                 backgroundColor: colors.muted,
                 color: colors.foreground,
-                borderColor: colors.border,
+                borderColor: smsText ? colors.primary : colors.border,
               },
             ]}
-            placeholder="Вставьте текст SMS от Kaspi, BCC или другого банка..."
+            placeholder="Вставьте текст SMS от Kaspi, BCC, Halyk или другого банка..."
             placeholderTextColor={colors.mutedForeground}
             multiline
-            numberOfLines={4}
+            numberOfLines={5}
             value={smsText}
             onChangeText={setSmsText}
             textAlignVertical="top"
@@ -124,9 +144,9 @@ export default function SmsScreen() {
                 {
                   backgroundColor:
                     lastStatus === "success"
-                      ? colors.income + "20"
+                      ? colors.income + "15"
                       : lastStatus === "error"
-                      ? colors.expense + "20"
+                      ? colors.expense + "15"
                       : colors.muted,
                   borderColor:
                     lastStatus === "success"
@@ -145,7 +165,7 @@ export default function SmsScreen() {
                     ? "x-circle"
                     : "alert-circle"
                 }
-                size={16}
+                size={20}
                 color={
                   lastStatus === "success"
                     ? colors.income
@@ -173,61 +193,88 @@ export default function SmsScreen() {
           ) : null}
 
           <TouchableOpacity
-            style={[
-              styles.sendBtn,
-              {
-                backgroundColor: smsText.trim() ? colors.primary : colors.muted,
-                opacity: uploadSmsMutation.isPending ? 0.7 : 1,
-              },
-            ]}
             onPress={handleSend}
-            disabled={!smsText.trim() || uploadSmsMutation.isPending}
+            disabled={!canSend}
             testID="button-send-sms"
+            activeOpacity={0.8}
           >
-            {uploadSmsMutation.isPending ? (
-              <ActivityIndicator color="#fff" size="small" />
+            {canSend ? (
+              <LinearGradient
+                colors={["#16a34a", "#22c55e"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.sendBtn}
+              >
+                <Feather name="zap" size={20} color="#fff" />
+                <Text style={styles.sendBtnText}>Распознать и добавить</Text>
+              </LinearGradient>
             ) : (
-              <>
-                <Feather
-                  name="send"
-                  size={18}
-                  color={smsText.trim() ? "#fff" : colors.mutedForeground}
-                />
-                <Text
-                  style={[
-                    styles.sendBtnText,
-                    { color: smsText.trim() ? "#fff" : colors.mutedForeground },
-                  ]}
-                >
-                  Добавить транзакцию
-                </Text>
-              </>
+              <View style={[styles.sendBtn, { backgroundColor: colors.muted }]}>
+                {uploadSmsMutation.isPending ? (
+                  <>
+                    <ActivityIndicator color={colors.primary} size="small" />
+                    <Text style={[styles.sendBtnText, { color: colors.primary }]}>Анализирую...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Feather name="send" size={20} color={colors.mutedForeground} />
+                    <Text style={[styles.sendBtnText, { color: colors.mutedForeground }]}>
+                      Вставьте текст SMS
+                    </Text>
+                  </>
+                )}
+              </View>
             )}
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
-          Примеры SMS — нажми чтобы попробовать
-        </Text>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Примеры SMS</Text>
+          <Text style={[styles.sectionSub, { color: colors.mutedForeground }]}>Нажми чтобы вставить</Text>
+        </View>
 
         {EXAMPLE_SMS.map((ex, i) => (
           <TouchableOpacity
             key={i}
-            style={[styles.exampleCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => handleExample(ex)}
+            style={[styles.exampleCard, { backgroundColor: colors.card }]}
+            onPress={() => handleExample(ex.text)}
             testID={`button-example-${i}`}
+            activeOpacity={0.7}
           >
-            <Feather name="message-square" size={16} color={colors.primary} />
-            <Text style={[styles.exampleText, { color: colors.foreground }]} numberOfLines={2}>
-              {ex}
-            </Text>
+            <View style={[
+              styles.exampleBadge,
+              { backgroundColor: ex.type === "income" ? colors.income + "15" : colors.expense + "15" }
+            ]}>
+              <Feather
+                name={ex.type === "income" ? "arrow-down-left" : "arrow-up-right"}
+                size={16}
+                color={ex.type === "income" ? colors.income : colors.expense}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={styles.exampleTop}>
+                <Text style={[styles.exampleBank, { color: colors.primary }]}>{ex.bank}</Text>
+                <Text style={[styles.exampleType, {
+                  color: ex.type === "income" ? colors.income : colors.expense
+                }]}>
+                  {ex.type === "income" ? "Зачисление" : "Покупка"}
+                </Text>
+              </View>
+              <Text style={[styles.exampleText, { color: colors.foreground }]} numberOfLines={2}>
+                {ex.text}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
           </TouchableOpacity>
         ))}
 
         <View style={[styles.infoCard, { backgroundColor: colors.secondary, borderColor: colors.accent }]}>
-          <Feather name="info" size={16} color={colors.primary} />
-          <Text style={[styles.infoText, { color: colors.foreground }]}>
-            Поддерживаются SMS от Kaspi, Halyk, BCC, Freedom Bank и других казахстанских банков. Суммы в тенге (₸) определяются автоматически.
+          <View style={[styles.infoIconWrap, { backgroundColor: colors.primary + "15" }]}>
+            <Feather name="shield" size={18} color={colors.primary} />
+          </View>
+          <Text style={[styles.infoText, { color: colors.secondaryForeground }]}>
+            Поддерживаются SMS от Kaspi, Halyk, BCC, Freedom Bank и других казахстанских банков.
+            Суммы в тенге (₸) определяются автоматически через ИИ.
           </Text>
         </View>
       </ScrollView>
@@ -237,65 +284,109 @@ export default function SmsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
-  title: { fontSize: 28, fontWeight: "700", letterSpacing: -0.5 },
-  subtitle: { fontSize: 14, marginTop: 2 },
-  card: {
-    marginHorizontal: 20,
-    marginVertical: 12,
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    gap: 12,
+  header: {
+    paddingHorizontal: 24,
+    paddingBottom: 16,
   },
-  cardLabel: { fontSize: 13, fontWeight: "500" },
+  title: { fontSize: 30, fontWeight: "800", letterSpacing: -0.5, marginBottom: 4 },
+  subtitle: { fontSize: 15, lineHeight: 21 },
+  inputCard: {
+    marginHorizontal: 24,
+    marginBottom: 28,
+    borderRadius: 24,
+    padding: 20,
+    gap: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  inputHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  inputIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inputLabel: { fontSize: 17, fontWeight: "700" },
   input: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
-    fontSize: 14,
-    minHeight: 110,
-    lineHeight: 20,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    padding: 16,
+    fontSize: 15,
+    minHeight: 130,
+    lineHeight: 22,
   },
   resultBox: {
-    borderRadius: 10,
-    borderWidth: 1,
-    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    padding: 14,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
-  resultText: { fontSize: 13, flex: 1, fontWeight: "500" },
+  resultText: { fontSize: 14, flex: 1, fontWeight: "600", lineHeight: 20 },
   sendBtn: {
-    borderRadius: 14,
-    paddingVertical: 15,
+    borderRadius: 18,
+    paddingVertical: 18,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 10,
   },
-  sendBtnText: { fontSize: 16, fontWeight: "600" },
-  sectionTitle: { fontSize: 13, fontWeight: "500", marginHorizontal: 20, marginTop: 8, marginBottom: 8 },
+  sendBtnText: { fontSize: 17, fontWeight: "700", color: "#fff" },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginHorizontal: 24,
+    marginBottom: 12,
+  },
+  sectionTitle: { fontSize: 20, fontWeight: "700" },
+  sectionSub: { fontSize: 13 },
   exampleCard: {
-    marginHorizontal: 20,
-    marginBottom: 8,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
+    marginHorizontal: 24,
+    marginBottom: 10,
+    borderRadius: 20,
+    padding: 16,
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
+    alignItems: "center",
+    gap: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  exampleText: { fontSize: 13, flex: 1, lineHeight: 18 },
+  exampleBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  exampleTop: { flexDirection: "row", gap: 8, alignItems: "center", marginBottom: 4 },
+  exampleBank: { fontSize: 12, fontWeight: "700" },
+  exampleType: { fontSize: 12, fontWeight: "500" },
+  exampleText: { fontSize: 13, lineHeight: 18 },
   infoCard: {
-    marginHorizontal: 20,
+    marginHorizontal: 24,
     marginTop: 8,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1.5,
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 10,
+    gap: 14,
   },
-  infoText: { fontSize: 13, flex: 1, lineHeight: 18 },
+  infoIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  infoText: { fontSize: 13, flex: 1, lineHeight: 20 },
 });
