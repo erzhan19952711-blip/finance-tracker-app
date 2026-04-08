@@ -1,8 +1,17 @@
 import { Tabs } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { Platform, StyleSheet, View, Text, useColorScheme } from "react-native";
 import { useColors } from "@/hooks/useColors";
+
+function TabIcon({ name, color, focused }: { name: string; color: string; focused: boolean }) {
+  const colors = useColors();
+  return (
+    <View style={[styles.tabIconWrap, focused && { backgroundColor: colors.primary + "18" }]}>
+      <Feather name={name as any} size={24} color={color} />
+    </View>
+  );
+}
 
 export default function TabLayout() {
   const colors = useColors();
@@ -16,55 +25,82 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.mutedForeground,
-        headerShown: true,
-        headerStyle: { backgroundColor: colors.background },
-        headerTintColor: colors.foreground,
-        headerShadowVisible: false,
+        headerShown: false,
         tabBarStyle: {
           position: "absolute",
-          backgroundColor: isIOS ? "transparent" : colors.background,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
+          backgroundColor: isIOS ? "transparent" : colors.card,
+          borderTopWidth: 0,
           elevation: 0,
-          ...(isWeb ? { height: 84 } : {}),
+          height: isWeb ? 84 : 76,
+          paddingBottom: 8,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.06,
+          shadowRadius: 16,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "600",
+          marginTop: 2,
         },
         tabBarBackground: () =>
           isIOS ? (
             <BlurView
-              intensity={100}
+              intensity={90}
               tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
+              style={[StyleSheet.absoluteFill, { borderTopWidth: 0.5, borderTopColor: colors.border }]}
             />
-          ) : isWeb ? (
+          ) : (
             <View
-              style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  backgroundColor: colors.card,
+                  borderTopWidth: 1,
+                  borderTopColor: colors.border,
+                },
+              ]}
             />
-          ) : null,
+          ),
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: "Главная",
-          tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="home" color={color} focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
         name="sms"
         options={{
-          title: "Добавить SMS",
-          tabBarLabel: "SMS",
-          tabBarIcon: ({ color }) => <Feather name="message-square" size={22} color={color} />,
+          title: "SMS",
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="message-square" color={color} focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
         name="report"
         options={{
-          title: "AI Отчёт",
-          tabBarLabel: "Отчёт",
-          tabBarIcon: ({ color }) => <Feather name="bar-chart-2" size={22} color={color} />,
+          title: "Отчёт",
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="bar-chart-2" color={color} focused={focused} />
+          ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  tabIconWrap: {
+    width: 44,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
